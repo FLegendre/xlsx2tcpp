@@ -58,7 +58,9 @@ get_names(char const* const xlsx_file_name, str_t const& sheetname)
 void
 init(char const* const xlsx_file_name, char const* const sheet_name = "")
 {
+	std::cout << "Reading “" << xlsx_file_name << "”...\n";
 	auto const [table, sheetname]{ fd_read_xlsx::get_table_sheetname(xlsx_file_name, sheet_name) };
+	std::cout << "Analysing “" << sheetname << "” sheet of “" << xlsx_file_name << "”...\n";
 	if (table.size() < 2)
 		throw Exception("the number of rows in the worksheet is less than 2");
 	for (size_t j{ 0 }; j < table[0].size(); ++j) {
@@ -73,16 +75,18 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 	}
 	auto const nr_cols{ table[0].size() };
 	for (size_t i{ 1 }; i < table.size(); ++i)
-		if (table[i].size() != nr_cols)
-			throw Exception("the number of cols is variable between rows");
+		if (table[i].size() > nr_cols)
+			throw Exception("the number of cols is variable between rows at row " +
+			                std::to_string(i + 1));
 	std::vector<bool> is_str(nr_cols, false);
 	std::vector<size_t> str_szs(nr_cols);
 	std::vector<bool> is_int(nr_cols, false);
 	for (size_t j{ 0 }; j < nr_cols; ++j) {
+		std::cout << "Analysing “" << fd_read_xlsx::get_string(table[0][j]) << "” row...\n";
 		// Test for string.
 		bool flag{ true };
 		for (size_t i{ 1 }; i < table.size(); ++i)
-			if (!fd_read_xlsx::holds_string(table[i][j])) {
+			if ((j < table[i].size()) && !fd_read_xlsx::holds_string(table[i][j])) {
 				flag = false;
 				break;
 			}
@@ -90,26 +94,30 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 			is_str[j] = true;
 			size_t max{ 0 };
 			for (size_t i{ 1 }; i < table.size(); ++i) {
-				auto const& str{ fd_read_xlsx::get_string(table[i][j]) };
-				if (str.size() > max)
-					max = str.size();
+				if (j < table[i].size()) {
+					auto const& str{ fd_read_xlsx::get_string(table[i][j]) };
+					if (str.size() > max)
+						max = str.size();
+				}
 			}
 			str_szs[j] = max;
 		} else {
 			// Test for int.
 			flag = true;
 			for (size_t i{ 1 }; i < table.size(); ++i)
-				if (!fd_read_xlsx::holds_int(table[i][j])) {
+				if ((j < table[i].size()) && !fd_read_xlsx::holds_int(table[i][j]) &&
+				    !fd_read_xlsx::empty(table[i][j])) {
 					flag = false;
 					break;
 				}
 			if (flag)
 				is_int[j] = true;
 			else {
-				// Test for int.
+				// Test for double.
 				flag = true;
 				for (size_t i{ 1 }; i < table.size(); ++i)
-					if (!fd_read_xlsx::holds_num(table[i][j])) {
+					if ((j < table[i].size()) && !fd_read_xlsx::holds_num(table[i][j]) &&
+					    !fd_read_xlsx::empty(table[i][j])) {
 						flag = false;
 						break;
 					}
@@ -156,15 +164,19 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 					out << "\t\t  ", first = false;
 				else
 					out << "\t\t, ";
-				out << fd_read_xlsx::get_string(table[0][j]) << "(fd_read_xlsx::get_int(_v_[" << j
-				    << "]))\n";
+				out << fd_read_xlsx::get_string(table[0][j]) << "(((" << j
+				    << " < _v_.size()) && !fd_read_xlsx::empty(_v_[" << j
+				    << "])) ? fd_read_xlsx::get_int(_v_[" << j
+				    << "]) : std::numeric_limits<int64_t>::max())\n";
 			} else {
 				if (first)
 					out << "\t\t  ", first = false;
 				else
 					out << "\t\t, ";
-				out << fd_read_xlsx::get_string(table[0][j]) << "(fd_read_xlsx::get_num(_v_[" << j
-				    << "]))\n";
+				out << fd_read_xlsx::get_string(table[0][j]) << "(((" << j
+				    << " < _v_.size()) && !fd_read_xlsx::empty(_v_[" << j
+				    << "])) ? fd_read_xlsx::get_num(_v_[" << j
+				    << "]) : std::numeric_limits<double>::quiet_NaN())\n";
 			}
 		}
 	}
@@ -177,8 +189,10 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 			// fill the string with 0 as the defaut initialization leaves the contents of the array
 			// indeterminated.
 			out << "\t\t\t\t" << name << ".fill('\\0');\n";
-			out << "\t\t\t\tauto const str {fd_read_xlsx::get_string(_v_[" << j << "])};\n";
-			out << "\t\t\t\tstd::copy(cbegin(str), cend(str), begin(" << name << "));\n";
+			out << "\t\t\t\tif ( " << j << " < _v_.size() ) {\n";
+			out << "\t\t\t\t\tauto const str {fd_read_xlsx::get_string(_v_[" << j << "])};\n";
+			out << "\t\t\t\t\tstd::copy(cbegin(str), cend(str), begin(" << name << "));\n";
+			out << "\t\t\t\t}\n";
 			out << "\t\t\t}\n";
 		}
 	}
@@ -208,13 +222,18 @@ template<typename T>
 void
 build(char const* const xlsx_file_name, char const* const sheet_name = "")
 {
+	std::cout << "Reading “" << xlsx_file_name << "”...\n";
 	auto const table{ fd_read_xlsx::read(xlsx_file_name, sheet_name) };
-	if (T::_info_.n != (table[0].size() - 1))
-		throw Exception("T::_info_.n != (table[0].size()-1)");
+	if (T::_info_.n != (table.size() - 1))
+		throw Exception("T::_info_.n (" + std::to_string(T::_info_.n) + "!= (table[0].size()-1) (" +
+		                std::to_string(table.size() - 1) + ')');
 	std::vector<T> tcpp;
 	tcpp.reserve(table.size() - 1);
+	std::cout << "Copying “" << T::_info_.file_name << "”...\n";
 	for (size_t i{ 1 }; i < table.size(); ++i)
 		tcpp.push_back(T{ table[i] });
+
+	std::cout << "Zipping “" << T::_info_.file_name << "”...\n";
 	// Be careful to create the directory.
 	if (!std::filesystem::exists(T::_info_.file_name))
 		if (!std::filesystem::create_directory(T::_info_.file_name))
