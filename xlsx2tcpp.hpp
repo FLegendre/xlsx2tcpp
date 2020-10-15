@@ -289,5 +289,45 @@ read()
 		thread.join();
 	return rvo;
 }
+// Usage
+//   for ( auto const & row : table ) {
+//       if ( first(table, row.a) ) {
+//           ...
+//
+// It is presumed that table is sorted by the values of a. The function returns
+// true if it is the first row or if the value of a from the previous row is
+// not equal to the value of current row.
+template<typename T, typename U>
+bool
+first(std::vector<T> const& table, U const& u)
+{
+	auto const address_table{ reinterpret_cast<char const*>(&table[0]) };
+	auto const address_u{ reinterpret_cast<char const*>(&u) };
+	assert(address_table <= address_u);
+	// Narrowing initializations for the compiler...
+	size_t i = (address_u - address_table) / sizeof(T);
+	size_t offset = address_u - (address_table + i * sizeof(T));
+	if (i == 0)
+		return true;
+	return std::memcmp(address_table + (i - 1) * sizeof(T) + offset,
+	                   address_table + i * sizeof(T) + offset,
+	                   sizeof(U)) != 0;
+}
+template<typename T, typename U>
+bool
+last(std::vector<T> const& table, U const& u)
+{
+	auto const address_table{ reinterpret_cast<char const*>(&table[0]) };
+	auto const address_u{ reinterpret_cast<char const*>(&u) };
+	assert(address_table <= address_u);
+	// Narrowing initializations for the compiler...
+	size_t i = (address_u - address_table) / sizeof(T);
+	size_t offset = address_u - (address_table + i * sizeof(T));
+	if (i >= table.size())
+		return true;
+	return std::memcmp(address_table + i * sizeof(T) + offset,
+	                   address_table + (i + 1) * sizeof(T) + offset,
+	                   sizeof(U)) != 0;
+}
 } // namespace xlsx2tcpp
 #endif // XLSX2TCPP_HPP
