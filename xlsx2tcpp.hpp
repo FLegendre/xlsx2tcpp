@@ -7,6 +7,7 @@
 #include <thread>
 
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <zlib.h>
@@ -225,7 +226,7 @@ build(char const* const xlsx_file_name, char const* const sheet_name = "")
 	std::cout << "Reading “" << xlsx_file_name << "”...\n";
 	auto const table{ fd_read_xlsx::read(xlsx_file_name, sheet_name) };
 	if (T::_info_.n != (table.size() - 1))
-		throw Exception("T::_info_.n (" + std::to_string(T::_info_.n) + "!= (table[0].size()-1) (" +
+		throw Exception("T::_info_.n (" + std::to_string(T::_info_.n) + ") != (table.size()-1) (" +
 		                std::to_string(table.size() - 1) + ')');
 	std::vector<T> tcpp;
 	tcpp.reserve(table.size() - 1);
@@ -320,14 +321,32 @@ last(std::vector<T> const& table, U const& u)
 	auto const address_table{ reinterpret_cast<char const*>(&table[0]) };
 	auto const address_u{ reinterpret_cast<char const*>(&u) };
 	assert(address_table <= address_u);
-	// Narrowing initializations for the compiler...
-	size_t i = (address_u - address_table) / sizeof(T);
-	size_t offset = address_u - (address_table + i * sizeof(T));
+	auto const i{ size_t(address_u - address_table) / sizeof(T) };
+	auto const offset{ size_t(address_u - (address_table + i * sizeof(T))) };
 	if (i >= table.size())
 		return true;
 	return std::memcmp(address_table + i * sizeof(T) + offset,
 	                   address_table + (i + 1) * sizeof(T) + offset,
 	                   sizeof(U)) != 0;
+}
+bool
+missing(int64_t i)
+{
+	return i == std::numeric_limits<int64_t>::max();
+}
+bool
+missing(double x)
+{
+	return std::isnan(x);
+}
+template<size_t N>
+bool
+missing(std::array<char, N> const& a)
+{
+	for (size_t i{ 0 }; i < N; ++i)
+		if (a[i] != '\0')
+			return false;
+	return true;
 }
 } // namespace xlsx2tcpp
 #endif // XLSX2TCPP_HPP
