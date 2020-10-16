@@ -35,12 +35,11 @@ get_names(char const* const xlsx_file_name, str_t const& sheetname)
 
 	str_t const xlsx_file_name_base{ [&]() {
 		str_t const name{ xlsx_file_name };
-		str_t const ending{ ".xlsx" };
-		str_t const ENDING{ ".XLSX" };
-		if ((name.size() > ending.size()) &&
-		    (std::equal(crbegin(ending), crend(ending), crbegin(name)) ||
-		     std::equal(crbegin(ENDING), crend(ENDING), crbegin(name))))
-			return str_t(cbegin(name), cend(name) - ending.size());
+		str_t const end{ ".xlsx" };
+		str_t const END{ ".XLSX" };
+		if ((name.size() > end.size()) && (std::equal(crbegin(end), crend(end), crbegin(name)) ||
+		                                   std::equal(crbegin(END), crend(END), crbegin(name))))
+			return str_t(cbegin(name), cend(name) - end.size());
 		return name;
 	}() };
 
@@ -55,9 +54,9 @@ get_names(char const* const xlsx_file_name, str_t const& sheetname)
 	}
 	return { file_name, struct_name };
 }
-
+namespace internals {
 void
-init(char const* const xlsx_file_name, char const* const sheet_name = "")
+init(char const* const xlsx_file_name, char const* const sheet_name, bool lower)
 {
 	std::cout << "Reading “" << xlsx_file_name << "”...\n";
 	auto const [table, sheetname]{ fd_read_xlsx::get_table_sheetname(xlsx_file_name, sheet_name) };
@@ -141,15 +140,24 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 	out << "\t\tstatic constexpr _info_ {\n";
 	out << "\t\t\t" << (table.size() - 1) << ", \"" << file_name << "\", \"" << struct_name << "\", "
 	    << std::thread::hardware_concurrency() << " };\n";
+	// Convert the name of the variables to lowercase.
+	auto const to_lower{ [&](str_t const& str) {
+		if (!lower)
+			return str;
+		str_t rvo;
+		std::transform(
+		  begin(str), end(str), back_inserter(rvo), [](auto c) { return std::tolower(c); });
+		return rvo;
+	} };
 	// The data members.
 	for (size_t j{ 0 }; j < nr_cols; ++j) {
 		if (is_str[j])
-			out << "\tstd::array<char, " << str_szs[j] << "> " << fd_read_xlsx::get_string(table[0][j])
-			    << ";\n";
+			out << "\tstd::array<char, " << str_szs[j] << "> "
+			    << to_lower(fd_read_xlsx::get_string(table[0][j])) << ";\n";
 		else if (is_int[j])
-			out << "\tint64_t " << fd_read_xlsx::get_string(table[0][j]) << ";\n";
+			out << "\tint64_t " << to_lower(fd_read_xlsx::get_string(table[0][j])) << ";\n";
 		else
-			out << "\tdouble " << fd_read_xlsx::get_string(table[0][j]) << ";\n";
+			out << "\tdouble " << to_lower(fd_read_xlsx::get_string(table[0][j])) << ";\n";
 	}
 	// The constructors.
 	out << '\t' << struct_name << "() {}\n";
@@ -165,7 +173,7 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 					out << "\t\t  ", first = false;
 				else
 					out << "\t\t, ";
-				out << fd_read_xlsx::get_string(table[0][j]) << "(((" << j
+				out << to_lower(fd_read_xlsx::get_string(table[0][j])) << "(((" << j
 				    << " < _v_.size()) && !fd_read_xlsx::empty(_v_[" << j
 				    << "])) ? fd_read_xlsx::get_int(_v_[" << j
 				    << "]) : std::numeric_limits<int64_t>::max())\n";
@@ -174,7 +182,7 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 					out << "\t\t  ", first = false;
 				else
 					out << "\t\t, ";
-				out << fd_read_xlsx::get_string(table[0][j]) << "(((" << j
+				out << to_lower(fd_read_xlsx::get_string(table[0][j])) << "(((" << j
 				    << " < _v_.size()) && !fd_read_xlsx::empty(_v_[" << j
 				    << "])) ? fd_read_xlsx::get_num(_v_[" << j
 				    << "]) : std::numeric_limits<double>::quiet_NaN())\n";
@@ -185,7 +193,7 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 	out << "\t\t{\n";
 	for (size_t j{ 0 }; j < nr_cols; ++j) {
 		if (is_str[j]) {
-			auto const name{ fd_read_xlsx::get_string(table[0][j]) };
+			auto const name{ to_lower(fd_read_xlsx::get_string(table[0][j])) };
 			out << "\t\t\t{\n";
 			// fill the string with 0 as the defaut initialization leaves the contents of the array
 			// indeterminated.
@@ -201,6 +209,18 @@ init(char const* const xlsx_file_name, char const* const sheet_name = "")
 
 	out << "};\n";
 }
+}
+void
+init(char const* const xlsx_file_name, char const* const sheet_name = "")
+{
+	internals::init(xlsx_file_name, sheet_name, false);
+}
+void
+lower_init(char const* const xlsx_file_name, char const* const sheet_name = "")
+{
+	internals::init(xlsx_file_name, sheet_name, true);
+}
+
 template<typename T>
 void
 task_write(str_t const& file_name, std::vector<T> const& tcpp, size_t start, size_t end)

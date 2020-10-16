@@ -18,7 +18,6 @@ First step: generate the `test-sheet1.hpp` file from the `test.xlsx` workbook us
 int
 main()
 {
-
     xlsx2tcpp::init("test.xlsx");
 
     return 0;
@@ -33,7 +32,6 @@ Second step: build the zipped chunks of the `sheet1` sheet using the C++ program
 int
 main()
 {
-
     xlsx2tcpp::build<test_sheet1>("test.xlsx");
 
     return 0;
@@ -48,7 +46,6 @@ Third step: use the zipped chunks of the `sheet1` sheet using the C++ program:
 int
 main()
 {
-
     auto const table{ xlsx2tcpp::read<test_sheet1>() };
 
     for (auto const& row : table)
