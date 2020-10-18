@@ -4,10 +4,11 @@ Convert a Microsoft xlsx worksheet into a table that is read efficiently in C++ 
 Presume that the worksheet is
 |  a  |  b  |  c  |
 | --- | --- | --- |
-|  1  |  a  |  1. |
-|  2  |  b  |  2. |
+|  1  | m   |  1. |
+|  2  | mm  |  2. |
+|  1  | m   |  3. |
 
-The library will generate a C++ struct with 3 data members, named `a`, `b`, and `c`, of type `int64_t`, `std::array<char, 1>`, and `double`. In a second step, the library generate zipped chunks of the original sheet, with respect to the number of cores of the processor.
+The library will generate a C++ struct with 3 data members, named `a`, `b`, and `c`, of type `int64_t`, `std::array<char, 2>`, and `double`. In a second step, the library generate zipped chunks of the original sheet, with respect to the number of cores of the processor.
 
 This is an header only library : put the `xlsx2tcpp.hpp` file in a appropriate place and use it with 3 steps.
 

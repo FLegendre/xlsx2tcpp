@@ -32,15 +32,17 @@ private:
 std::pair<str_t, str_t>
 get_names(char const* const xlsx_file_name, str_t const& sheetname)
 {
-
+	// Get the base file name et chop the extension if it is an Excel one.
 	str_t const xlsx_file_name_base{ [&]() {
 		str_t const name{ xlsx_file_name };
+		auto const last{ name.rfind('/') };
+		auto const begin{ ((last == str_t::npos) && (last != name.size()-1))  ? 0 : last+1 };
 		str_t const end{ ".xlsx" };
 		str_t const END{ ".XLSX" };
 		if ((name.size() > end.size()) && (std::equal(crbegin(end), crend(end), crbegin(name)) ||
 		                                   std::equal(crbegin(END), crend(END), crbegin(name))))
-			return str_t(cbegin(name), cend(name) - end.size());
-		return name;
+			return str_t(cbegin(name) + begin, cend(name) - end.size());
+		return (begin == 0) ? name : str_t(cbegin(name) + begin, cend(name));
 	}() };
 
 	str_t file_name, struct_name;
@@ -49,8 +51,12 @@ get_names(char const* const xlsx_file_name, str_t const& sheetname)
 			file_name += c, struct_name += c;
 		else if (std::isdigit(c))
 			file_name += c, struct_name += struct_name.empty() ? '_' : c;
-		else
-			file_name += '-', struct_name += '_';
+		// Dont put a `-' in front of a file name.
+		else {
+			if ( ! file_name.empty() )
+				file_name += '-' ; 
+			struct_name += '_';
+		}
 	}
 	return { file_name, struct_name };
 }
@@ -368,5 +374,36 @@ missing(std::array<char, N> const& a)
 			return false;
 	return true;
 }
+// A little insecure to use : call this function to get the indexes of each row within a map.
+//       auto const index { make_index(table, table[0].member) };
+// You need to pass the value of the member used as index for the first row of the table.
+template<typename T, typename U>
+std::map<U, size_t>
+make_index(std::vector<T> const& table, U const& u)
+{
+	auto table_address{ reinterpret_cast<char const*>(&table[0]) };
+	size_t const offset = reinterpret_cast<char const*>(&u) - table_address;
+	std::map<U, size_t> rvo;
+	for (auto const& row : table) {
+		U const* address{ reinterpret_cast<U const*>(reinterpret_cast<char const*>(&row) + offset) };
+		rvo[*address] = &row - &table[0];
+	}
+	return rvo;
+}
 } // namespace xlsx2tcpp
+
+// This template is put in the global namespace (bad pratice ?).
+template<size_t N>
+std::ostream&
+operator<<(std::ostream& os, std::array<char, N> const& str)
+{
+	if (xlsx2tcpp::missing(str))
+		os << "-.-";
+	else {
+		for (auto const& c : str)
+			if (c)
+				os << c;
+	}
+	return os;
+}
 #endif // XLSX2TCPP_HPP
