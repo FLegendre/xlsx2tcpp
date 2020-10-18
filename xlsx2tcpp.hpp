@@ -20,9 +20,8 @@ class Exception : public std::exception
 {
 
 public:
-	Exception(str_t const& msg)
-	  : msg_("xlsx2tcpp library: " + msg + '.')
-	{}
+	Exception(str_t const& msg) : msg_("xlsx2tcpp library: " + msg + ((*crbegin(msg) == '?') ? ' ' : '.')) 
+	{ }
 	const char* what() const throw() { return msg_.c_str(); }
 
 private:
@@ -382,6 +381,11 @@ std::map<U, size_t>
 make_index(std::vector<T> const& table, U const& u)
 {
 	auto table_address{ reinterpret_cast<char const*>(&table[0]) };
+	auto data_address{ reinterpret_cast<char const*>(&u) };
+	if ( !(table_address <= data_address) )
+		throw Exception("make_index: wrong parameters, address(arg1) > address(arg2)") ;
+	if( !(data_address < table_address + sizeof(T)) ) 
+		throw Exception("make_index: do you pass the variable of the first observation as arg2?");
 	size_t const offset = reinterpret_cast<char const*>(&u) - table_address;
 	std::map<U, size_t> rvo;
 	for (auto const& row : table) {
