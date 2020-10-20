@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <fstream>
 #include <thread>
+#include <map>
+#include <functional>
 
 #include <cassert>
 #include <cmath>
@@ -373,25 +375,14 @@ missing(std::array<char, N> const& a)
 			return false;
 	return true;
 }
-// A little insecure to use : call this function to get the indexes of each row within a map.
-//       auto const index { make_index(table, table[0].member) };
-// You need to pass the value of the member used as index for the first row of the table.
+// auto const index { make_index(table, &Row::member) };
 template<typename T, typename U>
-std::map<U, size_t>
-make_index(std::vector<T> const& table, U const& u)
+std::map<std::invoke_result_t<U>, size_t>
+make_index2(std::vector<T> const& table, U&& u)
 {
-	auto table_address{ reinterpret_cast<char const*>(&table[0]) };
-	auto data_address{ reinterpret_cast<char const*>(&u) };
-	if ( !(table_address <= data_address) )
-		throw Exception("make_index: wrong parameters, address(arg1) > address(arg2)") ;
-	if( !(data_address < table_address + sizeof(T)) ) 
-		throw Exception("make_index: do you pass the variable of the first observation as arg2?");
-	size_t const offset = reinterpret_cast<char const*>(&u) - table_address;
-	std::map<U, size_t> rvo;
-	for (auto const& row : table) {
-		U const* address{ reinterpret_cast<U const*>(reinterpret_cast<char const*>(&row) + offset) };
-		rvo[*address] = &row - &table[0];
-	}
+	std::map<std::invoke_result_t<U>, size_t> rvo;
+	for (auto const& row : table)
+		rvo[std::invoke(u, row)] = &row - &table[0];
 	return rvo;
 }
 } // namespace xlsx2tcpp
