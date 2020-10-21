@@ -4,9 +4,8 @@
 #include <fd-read-xlsx.hpp>
 #include <filesystem>
 #include <fstream>
-#include <thread>
 #include <map>
-#include <functional>
+#include <thread>
 
 #include <cassert>
 #include <cmath>
@@ -22,8 +21,9 @@ class Exception : public std::exception
 {
 
 public:
-	Exception(str_t const& msg) : msg_("xlsx2tcpp library: " + msg + ((*crbegin(msg) == '?') ? ' ' : '.')) 
-	{ }
+	Exception(str_t const& msg)
+	  : msg_("xlsx2tcpp library: " + msg + ((*crbegin(msg) == '?') ? ' ' : '.'))
+	{}
 	const char* what() const throw() { return msg_.c_str(); }
 
 private:
@@ -37,7 +37,7 @@ get_names(char const* const xlsx_file_name, str_t const& sheetname)
 	str_t const xlsx_file_name_base{ [&]() {
 		str_t const name{ xlsx_file_name };
 		auto const last{ name.rfind('/') };
-		auto const begin{ ((last == str_t::npos) && (last != name.size()-1))  ? 0 : last+1 };
+		auto const begin{ ((last == str_t::npos) && (last != name.size() - 1)) ? 0 : last + 1 };
 		str_t const end{ ".xlsx" };
 		str_t const END{ ".XLSX" };
 		if ((name.size() > end.size()) && (std::equal(crbegin(end), crend(end), crbegin(name)) ||
@@ -54,8 +54,8 @@ get_names(char const* const xlsx_file_name, str_t const& sheetname)
 			file_name += c, struct_name += struct_name.empty() ? '_' : c;
 		// Dont put a `-' in front of a file name.
 		else {
-			if ( ! file_name.empty() )
-				file_name += '-' ; 
+			if (!file_name.empty())
+				file_name += '-';
 			struct_name += '_';
 		}
 	}
@@ -375,15 +375,15 @@ missing(std::array<char, N> const& a)
 			return false;
 	return true;
 }
-// auto const index { make_index(table, &Row::member) };
+// auto const [index, same_sz] { make_index(table, &Row::member) };
 template<typename T, typename U>
-std::map<std::invoke_result_t<U>, size_t>
-make_index2(std::vector<T> const& table, U&& u)
+std::pair<std::map<U, size_t>, bool>
+make_index(std::vector<T> const& table, U T::*m_ptr)
 {
-	std::map<std::invoke_result_t<U>, size_t> rvo;
+	std::map<U, size_t> rvo;
 	for (auto const& row : table)
-		rvo[std::invoke(u, row)] = &row - &table[0];
-	return rvo;
+		rvo[row.*m_ptr] = &row - &table[0];
+	return { rvo, rvo.size() == table.size() };
 }
 } // namespace xlsx2tcpp
 
