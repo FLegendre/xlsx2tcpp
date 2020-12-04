@@ -10,9 +10,7 @@ main()
 	for (auto const& row : table)
 		std::cout << row.a << '\n';
 
-	auto const [index, ok]{ xlsx2tcpp::make_index(table, &test_sheet1::a) };
-
-	std::cout << "index.find(2)->second" << '\t' << index.find(2)->second << '\n';
+	std::cout << xlsx2tcpp::index(table, &test_sheet1::a, 2l) << '\n';
 
 	return 0;
 }

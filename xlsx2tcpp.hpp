@@ -13,6 +13,42 @@
 #include <cstring>
 #include <zlib.h>
 
+// We need to define
+// 1) xlsx2tcpp::missing(std::array<char, N>);
+// 2) std::to_string(std::array<char, N>) which use the former function.
+// So we open the namespace xlsx2tcpp et we close it. Then we open the namespace std and we close
+// it.
+
+namespace xlsx2tcpp {
+template<size_t N>
+bool
+missing(std::array<char, N> const& a)
+{
+	for (size_t i{ 0 }; i < N; ++i)
+		if (a[i] != '\0')
+			return false;
+	return true;
+}
+} // namespace xlsx2tcpp
+
+// This template is put in the std namespace (bad pratice ?).
+namespace std {
+template<size_t N>
+std::string
+to_string(std::array<char, N> const& str)
+{
+	std::string rvo;
+	if (xlsx2tcpp::missing(str))
+		rvo += "-.-";
+	else {
+		for (auto const& c : str)
+			if (c)
+				rvo += c;
+	}
+	return rvo;
+}
+} // namespace std
+
 namespace xlsx2tcpp {
 
 typedef std::string str_t;
@@ -47,9 +83,12 @@ get_names(char const* const xlsx_file_name, str_t const& sheetname)
 	}() };
 
 	str_t file_name, struct_name;
-	for (auto const& c : str_t{ xlsx_file_name_base } + '-' + sheetname) {
+	// If same names, do not duplicate.
+	auto const tmp{ (xlsx_file_name_base == sheetname) ? sheetname
+		                                                 : (xlsx_file_name_base + '-' + sheetname) };
+	for (auto const& c : tmp) {
 		if (std::isalpha(c))
-			file_name += c, struct_name += c;
+			file_name += c, struct_name += struct_name.empty() ? std::toupper(c) : c;
 		else if (std::isdigit(c))
 			file_name += c, struct_name += struct_name.empty() ? '_' : c;
 		// Dont put a `-' in front of a file name.
@@ -299,7 +338,7 @@ task_read(str_t const& file_name, std::vector<T>& rvo, size_t start, size_t end)
 }
 template<typename T>
 std::vector<T>
-read()
+read(str_t const& dir_name = "")
 {
 	std::vector<T> rvo{ T::_info_.n };
 	auto const nr_threads{ T::_info_.nr_threads };
@@ -308,7 +347,8 @@ read()
 	auto const step{ rvo.size() / nr_threads + 1 };
 	size_t start{ 0 };
 	for (size_t i = 0; i < nr_threads; ++i) {
-		auto const name{ str_t{ T::_info_.file_name } + '/' + std::to_string(i) + ".gz" };
+		auto const name{ (dir_name.empty() ? str_t{} : (dir_name + '/')) +
+			               str_t{ T::_info_.file_name } + '/' + std::to_string(i) + ".gz" };
 		auto const end{ std::min(start + step, rvo.size()) };
 		threads.emplace_back(task_read<T>, name, std::ref(rvo), start, end);
 		start = end;
@@ -366,24 +406,79 @@ missing(double x)
 {
 	return std::isnan(x);
 }
-template<size_t N>
-bool
-missing(std::array<char, N> const& a)
-{
-	for (size_t i{ 0 }; i < N; ++i)
-		if (a[i] != '\0')
-			return false;
-	return true;
-}
-// auto const [index, same_sz] { make_index(table, &Row::member) };
+// auto const N { not_missing(table, &Row::member) };
 template<typename T, typename U>
-std::pair<std::map<U, size_t>, bool>
-make_index(std::vector<T> const& table, U T::*m_ptr)
+size_t
+not_missing(std::vector<T> const& table, U T::*m_ptr)
 {
-	std::map<U, size_t> rvo;
+	size_t N{ 0 };
 	for (auto const& row : table)
-		rvo[row.*m_ptr] = &row - &table[0];
-	return { rvo, rvo.size() == table.size() };
+		if (!missing(row.*m_ptr))
+			++N;
+	return N;
+}
+template<typename T>
+size_t
+num_obs(std::vector<T> const& table, T const& row)
+{
+	assert(&row >= &table[0]);
+	return &row - &table[0];
+}
+// index(table, &Row::member, key)
+template<typename T, typename U>
+size_t
+index(std::vector<T> const& table, U T::*m_ptr, U const& key)
+{
+	// The maps are stored in a static main map. In case of miss, the map is created on the fly and
+	// putted in the cache. Otherwise, the map in cache is used. The key of the main map is the adress
+	// of the first observation of the table and the offset of the data member.
+	static std::map<std::pair<T const*, size_t>, std::map<U, size_t>> maps;
+	auto const offset{ size_t(reinterpret_cast<char const*>(&(table[0].*m_ptr)) -
+		                        reinterpret_cast<char const*>(&table[0])) };
+	auto const map_key{ std::make_pair(&table[0], offset) };
+	auto const it{ maps.find(map_key) };
+	if (it == std::cend(maps)) {
+		std::map<U, size_t> tmp;
+		for (auto const& row : table)
+			tmp[row.*m_ptr] = &row - &table[0];
+		maps[map_key] = tmp;
+		auto const it_key{ tmp.find(key) };
+		if (it_key == std::cend(tmp))
+			throw Exception{ "key “" + std::to_string(key) + "“ not found" };
+		return it_key->second;
+	}
+	auto const it_key{ it->second.find(key) };
+	if (it_key == std::cend(it->second))
+		throw Exception{ "key “" + std::to_string(key) + "“ not found" };
+	return it_key->second;
+}
+//  xt::index(table, &Row::member, key, &Row::get_member)
+template<typename T, typename U, typename V>
+V
+index(std::vector<T> const& table, U T::*m_ptr, U const& key, V T::*m_get_ptr)
+{
+	return table[index(table, m_ptr, key)].*m_get_ptr;
+}
+// std::cout << freq(table, &Row::member, name);
+template<typename T, typename U>
+std::string
+freq(std::vector<T> const& table, U T::*m_ptr, std::string const& name)
+{
+	std::string rvo{ "Freq of " + name + ".\n" };
+	if (table.empty())
+		rvo += "<empty table>\n";
+	else {
+		std::map<U, size_t> freq;
+		for (auto const& row : table)
+			++freq[row.*m_ptr];
+		for (auto const& p : freq) {
+			auto const pct{ size_t(100. * p.second / table.size()) };
+			rvo += (missing(p.first) ? std::string("-.-") : std::to_string(p.first)) + '\t' +
+			       std::to_string(p.second) + '\t' + (pct ? std::to_string(pct) : std::string("𝜀")) +
+			       '\n';
+		}
+	}
+	return rvo;
 }
 } // namespace xlsx2tcpp
 
