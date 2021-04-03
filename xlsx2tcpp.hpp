@@ -1,7 +1,7 @@
 #ifndef XLSX2TCPP_HPP
 #define XLSX2TCPP_HPP
 
-#include <fd-read-xlsx.hpp>
+#include <fd-read-xlsx-header-only.hpp>
 #include <filesystem>
 #include <fstream>
 #include <map>
