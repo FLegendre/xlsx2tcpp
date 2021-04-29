@@ -207,7 +207,7 @@ init(char const* const xlsx_file_name, char const* const sheet_name, bool lower)
 	}
 	// The constructors.
 	out << '\t' << struct_name << "() {}\n";
-	out << '\t' << struct_name << "(std::vector<fd_read_xlsx::cell_t> const & _v_):\n";
+	out << '\t' << struct_name << "(std::vector<fd_read_xlsx::cell_t> const & _v_)\n";
 	{
 		// int64_t and double data members are initialized as data members.
 		bool first{ true };
@@ -216,7 +216,7 @@ init(char const* const xlsx_file_name, char const* const sheet_name, bool lower)
 				;
 			else if (is_int[j]) {
 				if (first)
-					out << "\t\t  ", first = false;
+					out << "\t\t: ", first = false;
 				else
 					out << "\t\t, ";
 				out << to_lower(fd_read_xlsx::get_string(table[0][j])) << "(((" << j
