@@ -200,7 +200,7 @@ init(char const* const xlsx_file_name, char const* const sheet_name, bool lower)
 		// If the variable is always empty, give a size of 1 : an array of size 0 is valid but
 		// is implemented with a C array of size 1. No gains but undefined behavior...
 		if (is_str[j])
-			out << "\tstd::array<char, " << std::max(str_szs[j], 1u) << "> "
+			out << "\tstd::array<char, " << std::max(str_szs[j], size_t(1)) << "> "
 			    << to_lower(fd_read_xlsx::get_string(table[0][j])) << ";\n";
 		else if (is_int[j])
 			out << "\tint64_t " << to_lower(fd_read_xlsx::get_string(table[0][j])) << ";\n";
