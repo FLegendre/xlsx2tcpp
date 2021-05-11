@@ -25,7 +25,7 @@ template<size_t N>
 bool
 missing(std::array<char, N> const& a)
 {
-	return a[0] != '\0' ;
+	return a[0] == '\0' ;
 }
 } // namespace xlsx2tcpp
 
