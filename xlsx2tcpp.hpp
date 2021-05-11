@@ -484,6 +484,7 @@ freq(std::vector<T> const& table, U T::*m_ptr, std::string const& name)
 } // namespace xlsx2tcpp
 
 // This template is put in the global namespace (bad pratice ?).
+// The first null char ends the string.
 template<size_t N>
 std::ostream&
 operator<<(std::ostream& os, std::array<char, N> const& str)
@@ -492,8 +493,10 @@ operator<<(std::ostream& os, std::array<char, N> const& str)
 		os << "-.-";
 	else {
 		for (auto const& c : str)
-			if (c)
+			if (c != '\0')
 				os << c;
+			else
+				break ;
 	}
 	return os;
 }
