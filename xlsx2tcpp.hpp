@@ -20,31 +20,30 @@
 // it.
 
 namespace xlsx2tcpp {
+// For efficiency, a string value is missing if the first char is null.
 template<size_t N>
 bool
 missing(std::array<char, N> const& a)
 {
-	for (size_t i{ 0 }; i < N; ++i)
-		if (a[i] != '\0')
-			return false;
-	return true;
+	return a[0] != '\0' ;
 }
 } // namespace xlsx2tcpp
 
 // This template is put in the std namespace (bad pratice ?).
 namespace std {
+// The first null char ends the string.
 template<size_t N>
 std::string
 to_string(std::array<char, N> const& str)
 {
-	std::string rvo;
 	if (xlsx2tcpp::missing(str))
-		rvo += "-.-";
-	else {
-		for (auto const& c : str)
-			if (c)
-				rvo += c;
-	}
+		return "-.-" ;
+	std::string rvo;
+	for (auto const& c : str)
+		if (c != '\0')
+			rvo += c;
+		else
+			return rvo ;
 	return rvo;
 }
 } // namespace std
